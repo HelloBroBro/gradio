@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from gradio_client.documentation import set_documentation_group
-from PIL import Image as _Image  # using _ to minimize namespace pollution
 
 from gradio import utils
 from gradio.blocks import Block, BlockContext
@@ -34,7 +33,6 @@ if TYPE_CHECKING:
 
 
 set_documentation_group("component")
-_Image.init()  # fixes https://github.com/gradio-app/gradio/issues/2843
 
 
 class _Keywords(Enum):
@@ -49,6 +47,10 @@ class ComponentBase(ABC, metaclass=ComponentMeta):
     def preprocess(self, payload: Any) -> Any:
         """
         Any preprocessing needed to be performed on function input.
+        Parameters:
+            payload: The input data received by the component from the frontend.
+        Returns:
+            The preprocessed input data sent to the user's function in the backend.
         """
         return payload
 
@@ -56,6 +58,10 @@ class ComponentBase(ABC, metaclass=ComponentMeta):
     def postprocess(self, value):
         """
         Any postprocessing needed to be performed on function output.
+        Parameters:
+            value: The output data received by the component from the user's function in the backend.
+        Returns:
+            The postprocessed output data sent to the frontend.
         """
         return value
 
@@ -93,11 +99,7 @@ class ComponentBase(ABC, metaclass=ComponentMeta):
         pass
 
     @abstractmethod
-    def read_from_flag(
-        self,
-        payload: Any,
-        flag_dir: str | Path | None = None,
-    ) -> GradioDataModel | Any:
+    def read_from_flag(self, payload: Any) -> GradioDataModel | Any:
         """
         Convert the data from the csv or jsonl file into the component state.
         """
@@ -280,11 +282,7 @@ class Component(ComponentBase, Block):
             return payload.copy_to_dir(flag_dir).model_dump_json()
         return payload
 
-    def read_from_flag(
-        self,
-        payload: Any,
-        flag_dir: str | Path | None = None,
-    ):
+    def read_from_flag(self, payload: Any):
         """
         Convert the data from the csv or jsonl file into the component state.
         """
