@@ -716,8 +716,8 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
             mode: A human-friendly name for the kind of Blocks or Interface being created. Used internally for analytics.
             title: The tab title to display when this is opened in a browser window.
             css: Custom css as a string or path to a css file. This css will be included in the demo webpage.
-            js: Custom js or path to js file to run when demo is first loaded. This javascript will be included in the demo webpage.
-            head: Custom html to insert into the head of the demo webpage. This can be used to add custom meta tags, scripts, stylesheets, etc. to the page.
+            js: Custom js as a string or path to a js file. The custom js should be in the form of a single js function. This function will automatically be executed when the page loads. For more flexibility, use the head parameter to insert js inside <script> tags.
+            head: Custom html to insert into the head of the demo webpage. This can be used to add custom meta tags, multiple scripts, stylesheets, etc. to the page.
             fill_height: Whether to vertically expand top-level child components to the height of the window. If True, expansion occurs when the scale value of the child components >= 1.
             delete_cache: A tuple corresponding [frequency, age] both expressed in number of seconds. Every `frequency` seconds, the temporary files created by this Blocks instance will be deleted if more than `age` seconds have passed since the file was created. For example, setting this to (86400, 86400) will delete temporary files every day. The cache will be deleted entirely when the server restarts. If None, no cache deletion will occur.
         """
@@ -2115,6 +2115,8 @@ Received outputs:
             demo = gr.Interface(reverse, "text", "text")
             demo.launch(share=True, auth=("username", "password"))
         """
+        from gradio.routes import App
+
         if self._is_running_in_reload_thread:
             # We have already launched the demo
             return None, None, None  # type: ignore
@@ -2163,6 +2165,10 @@ Received outputs:
         self.config = self.get_config_file()
         self.max_threads = max_threads
         self._queue.max_thread_count = max_threads
+        # self.server_app is included for backwards compatibility
+        self.server_app = self.app = App.create_app(
+            self, auth_dependency=auth_dependency, app_kwargs=app_kwargs
+        )
 
         if self.is_running:
             if not isinstance(self.local_url, str):
@@ -2177,18 +2183,10 @@ Received outputs:
                 server_port = 99999
                 local_url = ""
                 server = None
-
                 # In the Wasm environment, we only need the app object
                 # which the frontend app will directly communicate with through the Worker API,
                 # and we don't need to start a server.
-                # So we just create the app object and register it here,
-                # and avoid using `networking.start_server` that would start a server that don't work in the Wasm env.
-                from gradio.routes import App
-
-                app = App.create_app(
-                    self, auth_dependency=auth_dependency, app_kwargs=app_kwargs
-                )
-                wasm_utils.register_app(app)
+                wasm_utils.register_app(self.app)
             else:
                 from gradio import http_server
 
@@ -2196,23 +2194,18 @@ Received outputs:
                     server_name,
                     server_port,
                     local_url,
-                    app,
                     server,
                 ) = http_server.start_server(
-                    self,
-                    server_name,
-                    server_port,
-                    ssl_keyfile,
-                    ssl_certfile,
-                    ssl_keyfile_password,
-                    app_kwargs=app_kwargs,
+                    app=self.app,
+                    server_name=server_name,
+                    server_port=server_port,
+                    ssl_keyfile=ssl_keyfile,
+                    ssl_certfile=ssl_certfile,
+                    ssl_keyfile_password=ssl_keyfile_password,
                 )
             self.server_name = server_name
             self.local_url = local_url
             self.server_port = server_port
-            self.server_app = (
-                self.app
-            ) = app  # server_app is included for backwards compatibility
             self.server = server
             self.is_running = True
             self.is_colab = utils.colab_check()
